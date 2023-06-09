@@ -1,0 +1,133 @@
+#include <Servo.h>
+
+#include <dummy.h>
+
+//Include the library files
+#include <LiquidCrystal_I2C.h>
+#define BLYNK_PRINT Serial
+#include <ESP8266WiFi.h>
+#include <BlynkSimpleEsp8266.h>
+#define BLYNK_AUTH_TOKEN "xMv6GZxlRUab-OQMRUYbXljk2oWmfeIi"
+//Initialize the LCD display
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+Servo myServo;
+
+char auth[] = BLYNK_AUTH_TOKEN;//Enter your Auth token
+char ssid[] = "rinaazkiya";//Enter your WIFI name
+char pass[] = "rinacantik";//Enter your WIFI password
+
+BlynkTimer timer;
+
+// Define the component pins
+#define trig D7
+#define echo D8
+#define LED1 D0
+#define LED3 D4
+#define relay D5
+#define LED5 D6
+
+
+//Enter your tank max value(CM)
+int MaxLevel = 20;
+
+int Level1 = (MaxLevel * 75) / 100;
+int Level3 = (MaxLevel * 30) / 100;
+int Level5 = (MaxLevel * 20) / 100;
+
+void setup() {
+  Serial.begin(9600);
+  lcd.init();
+  lcd.backlight();
+  pinMode(trig, OUTPUT);
+  pinMode(echo, INPUT);
+  pinMode(LED1, OUTPUT);
+  pinMode(LED3, OUTPUT);
+  pinMode(LED5, OUTPUT);
+  pinMode(relay, OUTPUT);
+  digitalWrite(relay, HIGH);
+  Blynk.begin(auth, ssid, pass, "blynk.cloud", 80);
+  myServo.attach(D3);
+
+  lcd.setCursor(0, 0);
+  lcd.print("Status Air");
+  lcd.setCursor(4, 1);
+  lcd.print("Monitoring");
+  delay(4000);
+  lcd.clear();
+
+  //Call the functions
+  timer.setInterval(100L, ultrasonic);
+}
+
+//Get the ultrasonic sensor values
+void ultrasonic() {
+  digitalWrite(trig, LOW);
+  delayMicroseconds(4);
+  digitalWrite(trig, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trig, LOW);
+  long t = pulseIn(echo, HIGH);
+  int distance = t / 29 / 2;
+
+  int blynkDistance = (distance - MaxLevel) * -1;
+  if (distance <= MaxLevel) {
+    Blynk.virtualWrite(V0, blynkDistance);
+  } else {
+    Blynk.virtualWrite(V0, 0);
+  }
+  lcd.setCursor(0, 0);
+  lcd.print("LvlAir:");
+
+  if (Level1 <= distance) {
+    lcd.setCursor(8, 0);
+    lcd.print("aman");
+    delay(500);
+    digitalWrite(LED1, HIGH);
+    digitalWrite(LED3, LOW);
+    digitalWrite(LED5, LOW);
+    myServo.write(0);
+    delay (500);
+  } else if (Level3 <= distance && Level1 > distance) {
+    lcd.setCursor(8, 0);
+    lcd.print("waspada");
+    lcd.print("      ");
+    delay(500);
+    digitalWrite(LED1, HIGH);
+    digitalWrite(LED3, HIGH);
+    digitalWrite(LED5, LOW);
+    myServo.write(0);
+    delay(500);
+
+  } else if (Level5 >= distance) {
+    lcd.setCursor(8, 0);
+    lcd.print("Awas");
+    lcd.print("      ");
+    delay(500);
+    digitalWrite(LED1, HIGH);
+    digitalWrite(LED3, HIGH);
+    digitalWrite(LED5, HIGH);
+    myServo.write(180);
+    delay (1000);
+  }
+}
+
+//Get the button value
+BLYNK_WRITE(V1) {
+  bool Relay = param.asInt();
+  if (Relay == 1) {
+    digitalWrite(relay, LOW);
+    lcd.setCursor(0, 1);
+    lcd.print("Motor is ON ");
+    delay(500);
+  } else {
+    digitalWrite(relay, HIGH);
+    lcd.setCursor(0, 1);
+    lcd.print("Motor is OFF");
+    delay(1000);
+  }
+}
+
+void loop() {
+  Blynk.run();//Run the Blynk library
+  timer.run();//Run the Blynk timer
+}
